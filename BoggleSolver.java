@@ -7,29 +7,111 @@
 import edu.princeton.cs.algs4.In;
 import edu.princeton.cs.algs4.Queue;
 import edu.princeton.cs.algs4.StdOut;
-import edu.princeton.cs.algs4.TST;
-
-import java.util.TreeMap;
 
 public class BoggleSolver {
     private String[] dictionary;
-    private TST<Integer> tstForDictionary;
-    private TreeMap<String, Integer> cacheForDictionary;
-    private boolean[] lengthCheck;
+    private static final int R = 26;
+
+    private static class Node {
+        private Integer val;
+        private Node[] next = new Node[R];
+
+    }
+
+    private Node root;
+
+    private void put(String key, Integer val) {
+        root = put(root, key, val, 0);
+    }
+
+    private Node put(Node node, String key, Integer val, int charAt) {
+        if (node == null) {
+            node = new Node();
+        }
+        if (charAt == key.length()) {
+            node.val = val;
+            return node;
+        }
+        char c = key.charAt(charAt++);
+        node.next[c - 'A'] = put(node.next[c - 'A'], key, val, charAt);
+        return node;
+    }
+
+    private Integer get(String key) {
+        Node check = get(root, key, 0);
+        if (check == null) {
+            return null;
+        }
+        return check.val;
+    }
+
+    private Node get(Node node, String key, int charAt) {
+        if (node == null) {
+            return null;
+        }
+        if (charAt == key.length()) {
+            return node;
+        }
+        char c = key.charAt(charAt++);
+        return get(node.next[c - 'A'], key, charAt);
+
+    }
+
+    private boolean contains(String key) {
+        Integer i = get(key);
+        return i != null;
+    }
+
+    private Node helper(String prefix, Node node, int charAt) {
+        int length = prefix.length();
+        if (node == null) {
+            return null;
+        }
+        Node currentNode = node.next[prefix.charAt(charAt++) - 'A'];
+        while (currentNode != null && charAt < length) {
+            currentNode = currentNode.next[prefix.charAt(charAt++) - 'A'];
+        }
+        return currentNode;
+    }
+
+    // no need of this
+    private Iterable<String> keysWithPrefix(String prefix) {
+        Queue<String> prefixes = new Queue<String>();
+        int chatAt = 0;
+        int length = prefix.length();
+        if (root == null) {
+            return prefixes;
+        }
+        Node currentNode = root.next[prefix.charAt(chatAt++) - 'A'];
+        while (currentNode != null && chatAt < length) {
+            currentNode = currentNode.next[prefix.charAt(chatAt++) - 'A'];
+        }
+        collect(currentNode, prefixes);
+        return prefixes;
+    }
+
+    private void collect(Node node, Queue<String> prefixes) {
+        if (node == null) {
+            return;
+        }
+        Integer val = node.val;
+        if (val != null) {
+            prefixes.enqueue(dictionary[val]);
+        }
+        for (int i = 0; i < R; i++) {
+            collect(node.next[i], prefixes);
+        }
+    }
+
 
     // Initializes the data structure using the given array of strings as the dictionary.
     // (You can assume each word in the dictionary contains only the uppercase letters A through Z.)
     public BoggleSolver(String[] dictionary) {
         this.dictionary = dictionary.clone();
         int length = dictionary.length;
-        lengthCheck = new boolean[length];
-        tstForDictionary = new TST<Integer>();
-        cacheForDictionary = new TreeMap<String, Integer>();
         for (int i = 0; i < length; i++) {
-            tstForDictionary.put(dictionary[i], i);
-            cacheForDictionary.put(dictionary[i], null);
             if (dictionary[i].length() >= 3) {
-                lengthCheck[i] = true;
+                put(dictionary[i], i);
             }
         }
 
@@ -43,24 +125,16 @@ public class BoggleSolver {
         for (int i = 0, row = board.rows(); i < row; i++) {
             for (int j = 0, col = board.cols(); j < col; j++) {
                 boolean[][] visted = new boolean[board.rows()][board.cols()];
-                solver(board, marked, visted, solution, helper, i, j);
+                solver(board, root, 0, marked, visted, solution, helper, i, j);
             }
         }
         return solution;
     }
 
-    private void solver(BoggleBoard board, boolean[] marked, boolean[][] visited,
+    private void solver(BoggleBoard board, Node node, int charAt, boolean[] marked,
+                        boolean[][] visited,
                         Queue<String> solution,
                         String helper, int row, int col) {
-        // System.out.println("row: " + row + ", col: " + col);
-        // System.out.println("visited");
-        // for (int i = 0; i < board.rows(); i++) {
-        //     System.out.print("[ ");
-        //     for (int j = 0; j < board.cols(); j++) {
-        //         System.out.print(visited[i][j] + ", ");
-        //     }
-        //     System.out.print("]");
-        // }
 
         StringBuilder sb = new StringBuilder(helper);
         visited[row][col] = true;
@@ -72,14 +146,15 @@ public class BoggleSolver {
             sb.append(letter);
         }
         String newString = sb.toString();
+        Node current = helper(newString, node, charAt);
         // System.out.println("Check: " + newString);
-        if (!tstForDictionary.keysWithPrefix(newString).iterator().hasNext()) {
+        if (current == null) {
             visited[row][col] = false;
             return;
         }
-        if (tstForDictionary.contains(newString)) {
-            int val = tstForDictionary.get(newString);
-            if (lengthCheck[val] && !marked[val]) {
+        Integer val = current.val;
+        if (val != null) {
+            if (!marked[val]) {
                 solution.enqueue(dictionary[val]);
                 marked[val] = true;
             }
@@ -97,7 +172,8 @@ public class BoggleSolver {
                     || visited[newRow][newCol]) {
                 continue;
             }
-            solver(board, marked, visited, solution, newString, row + rowOffsets[i],
+            solver(board, current, length, marked, visited, solution, newString,
+                   row + rowOffsets[i],
                    col + colOffsets[i]);
         }
         visited[row][col] = false;
@@ -108,31 +184,28 @@ public class BoggleSolver {
     // (You can assume the word contains only the uppercase letters A through Z.)
     public int scoreOf(String word) {
         int length = word.length();
-        if (length >= 3 && cacheForDictionary.containsKey(word)) {
-            Integer val = cacheForDictionary.get(word);
-            if (val == null) {
-                switch (length) {
-                    case 3:
-                    case 4:
-                        val = 1;
-                        break;
-                    case 5:
-                        val = 2;
-                        break;
-                    case 6:
-                        val = 3;
-                        break;
-                    case 7:
-                        val = 5;
-                        break;
-                    default:
-                        val = 11;
-                        break;
-                }
+        int val = 0;
+        if (contains(word)) {
+            switch (length) {
+                case 3:
+                case 4:
+                    val = 1;
+                    break;
+                case 5:
+                    val = 2;
+                    break;
+                case 6:
+                    val = 3;
+                    break;
+                case 7:
+                    val = 5;
+                    break;
+                default:
+                    val = 11;
+                    break;
             }
-            return val;
         }
-        return 0;
+        return val;
     }
 
     public static void main(String[] args) {
