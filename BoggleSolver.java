@@ -7,21 +7,29 @@
 import edu.princeton.cs.algs4.In;
 import edu.princeton.cs.algs4.Queue;
 import edu.princeton.cs.algs4.StdOut;
-import edu.princeton.cs.algs4.TrieST;
+import edu.princeton.cs.algs4.TST;
+
+import java.util.TreeMap;
 
 public class BoggleSolver {
     private String[] dictionary;
-    private TrieST<Integer> tstForDictionary;
+    private TST<Integer> tstForDictionary;
+    private TreeMap<String, Integer> cacheForDictionary;
+    private boolean[] lengthCheck;
 
     // Initializes the data structure using the given array of strings as the dictionary.
     // (You can assume each word in the dictionary contains only the uppercase letters A through Z.)
     public BoggleSolver(String[] dictionary) {
         this.dictionary = dictionary.clone();
         int length = dictionary.length;
-        tstForDictionary = new TrieST<Integer>();
+        lengthCheck = new boolean[length];
+        tstForDictionary = new TST<Integer>();
+        cacheForDictionary = new TreeMap<String, Integer>();
         for (int i = 0; i < length; i++) {
+            tstForDictionary.put(dictionary[i], i);
+            cacheForDictionary.put(dictionary[i], null);
             if (dictionary[i].length() >= 3) {
-                tstForDictionary.put(dictionary[i], i);
+                lengthCheck[i] = true;
             }
         }
 
@@ -71,12 +79,13 @@ public class BoggleSolver {
         }
         if (tstForDictionary.contains(newString)) {
             int val = tstForDictionary.get(newString);
-            if (!marked[val]) {
+            if (lengthCheck[val] && !marked[val]) {
                 solution.enqueue(dictionary[val]);
                 marked[val] = true;
             }
         }
         // System.out.println(newString);
+        int length = newString.length();
         int[] rowOffsets = { -1, -1, -1, 0, 0, 1, 1, 1 };
         int[] colOffsets = { -1, 0, 1, -1, 1, -1, 0, 1 };
         int newRow = 0;
@@ -99,28 +108,31 @@ public class BoggleSolver {
     // (You can assume the word contains only the uppercase letters A through Z.)
     public int scoreOf(String word) {
         int length = word.length();
-        int val = 0;
-        if (tstForDictionary.contains(word)) {
-            switch (length) {
-                case 3:
-                case 4:
-                    val = 1;
-                    break;
-                case 5:
-                    val = 2;
-                    break;
-                case 6:
-                    val = 3;
-                    break;
-                case 7:
-                    val = 5;
-                    break;
-                default:
-                    val = 11;
-                    break;
+        if (length >= 3 && cacheForDictionary.containsKey(word)) {
+            Integer val = cacheForDictionary.get(word);
+            if (val == null) {
+                switch (length) {
+                    case 3:
+                    case 4:
+                        val = 1;
+                        break;
+                    case 5:
+                        val = 2;
+                        break;
+                    case 6:
+                        val = 3;
+                        break;
+                    case 7:
+                        val = 5;
+                        break;
+                    default:
+                        val = 11;
+                        break;
+                }
             }
+            return val;
         }
-        return val;
+        return 0;
     }
 
     public static void main(String[] args) {
